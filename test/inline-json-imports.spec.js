@@ -4,11 +4,13 @@ import path from 'path'
 import { expect } from 'chai'
 import { transform, transformFileSync } from 'babel-core'
 
+tmp.setGracefulCleanup()
+
 describe('babel-plugin-inline-json-imports', () => {
   it('inlines simple JSON imports', () => {
     const t = configureTransform()
     const result = t(`
-      import json from './test/fixtures/example.json'
+      import json from '../test/fixtures/example.json'
 
       console.log(json)
     `)
@@ -25,7 +27,7 @@ describe('babel-plugin-inline-json-imports', () => {
     const result = t(`
       import babel from 'babel-core'
       import css from './styles.css'
-      import json from './test/fixtures/example.json'
+      import json from '../test/fixtures/example.json'
 
       console.log(json)
     `)
@@ -63,7 +65,7 @@ describe('babel-plugin-inline-json-imports', () => {
       const transformOptions = {
         babelrc: false,
         presets: [],
-        plugins: [path.resolve('./'), options],
+        plugins: [path.resolve('./src'), options],
       }
 
       if (isFile) {
