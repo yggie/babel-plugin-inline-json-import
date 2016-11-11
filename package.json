@@ -1,6 +1,6 @@
 {
   "name": "babel-plugin-inline-json-import",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Inlines JSON file imports straight into JS code",
   "main": "build/index.js",
   "directories": {
