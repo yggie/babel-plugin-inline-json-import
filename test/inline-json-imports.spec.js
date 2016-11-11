@@ -22,6 +22,8 @@ describe('babel-plugin-inline-json-imports', () => {
     `))
   })
 
+
+
   it('inlines simple systemjs JSON imports', () => {
     const t = configureTransform()
     const result = t(`

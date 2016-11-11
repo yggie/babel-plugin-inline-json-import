@@ -4,38 +4,40 @@ import decache from 'decache'
 export default function babelPluginInlineJsonImports({ types: t }) {
   return {
     visitor: {
-      ImportDeclaration(path, state) {
-        const { node } = path
+      ImportDeclaration: {
+        exit(path, state) {
+          const { node } = path
 
-        const moduleName = node.source.value
+          const moduleName = node.source.value
 
-        if (moduleName.match(/\.json(!json)?$/)) {
-          const leftExpression = determineLeftExpression(t, node)
+          if (moduleName.match(/\.json(!json)?$/)) {
+            const leftExpression = determineLeftExpression(t, node)
 
-          const fileLocation = state.file.opts.filename
-          let filepath = null
+            const fileLocation = state.file.opts.filename
+            let filepath = null
 
-          if (fileLocation === 'unknown') {
-            filepath = moduleName
-          } else {
-            filepath = Path.join(Path.resolve(fileLocation), '..', moduleName)
+            if (fileLocation === 'unknown') {
+              filepath = moduleName
+            } else {
+              filepath = Path.join(Path.resolve(fileLocation), '..', moduleName)
+            }
+
+            if (filepath.slice(-5) === '!json') {
+              filepath = filepath.slice(0, filepath.length - 5);
+            }
+
+            const json = requireFresh(filepath)
+
+            path.replaceWith(
+              t.variableDeclaration('const', [
+                t.variableDeclarator(
+                  leftExpression,
+                  t.valueToNode(json),
+                ),
+              ])
+            )
           }
-
-          if (filepath.slice(-5) === '!json') {
-            filepath = filepath.slice(0, filepath.length - 5);
-          }
-
-          const json = requireFresh(filepath)
-
-          path.replaceWith(
-            t.variableDeclaration('const', [
-              t.variableDeclarator(
-                leftExpression,
-                t.valueToNode(json),
-              ),
-            ])
-          )
-        }
+        },
       },
     },
   }
