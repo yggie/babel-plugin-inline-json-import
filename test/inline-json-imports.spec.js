@@ -22,6 +22,21 @@ describe('babel-plugin-inline-json-imports', () => {
     `))
   })
 
+  it('inlines simple systemjs JSON imports', () => {
+    const t = configureTransform()
+    const result = t(`
+      import json from '../test/fixtures/example.json!json'
+
+      console.log(json)
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      const json = { example: true }
+
+      console.log(json)
+    `))
+  })
+
   it('does not inline other kinds of imports', () => {
     const t = configureTransform()
     const result = t(`

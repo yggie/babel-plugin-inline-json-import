@@ -9,7 +9,7 @@ export default function babelPluginInlineJsonImports({ types: t }) {
 
         const moduleName = node.source.value
 
-        if (moduleName.match(/\.json$/)) {
+        if (moduleName.match(/\.json(!json)?$/)) {
           const variableName = node.specifiers[0].local.name
 
           const fileLocation = state.file.opts.filename
@@ -19,6 +19,10 @@ export default function babelPluginInlineJsonImports({ types: t }) {
             filepath = moduleName
           } else {
             filepath = Path.join(Path.resolve(fileLocation), '..', moduleName)
+          }
+
+          if (filepath.slice(-5) === '!json') {
+            filepath = filepath.slice(0, filepath.length - 5);
           }
 
           const json = requireFresh(filepath)
