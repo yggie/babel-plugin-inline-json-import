@@ -37,6 +37,21 @@ describe('babel-plugin-inline-json-imports', () => {
     `))
   })
 
+  it('supports destructuring of the JSON imports', () => {
+    const t = configureTransform()
+    const result = t(`
+      import {example} from '../test/fixtures/example.json'
+
+      console.log(example)
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      const { example: example } = { example: true }
+
+      console.log(example)
+    `))
+  })
+
   it('does not inline other kinds of imports', () => {
     const t = configureTransform()
     const result = t(`

@@ -10,7 +10,7 @@ export default function babelPluginInlineJsonImports({ types: t }) {
         const moduleName = node.source.value
 
         if (moduleName.match(/\.json(!json)?$/)) {
-          const variableName = node.specifiers[0].local.name
+          const leftExpression = determineLeftExpression(t, node)
 
           const fileLocation = state.file.opts.filename
           let filepath = null
@@ -30,7 +30,7 @@ export default function babelPluginInlineJsonImports({ types: t }) {
           path.replaceWith(
             t.variableDeclaration('const', [
               t.variableDeclarator(
-                t.identifier(variableName),
+                leftExpression,
                 t.valueToNode(json),
               ),
             ])
@@ -39,6 +39,32 @@ export default function babelPluginInlineJsonImports({ types: t }) {
       },
     },
   }
+}
+
+function determineLeftExpression(types, node) {
+  if (isDestructuredImportExpression(node)) {
+    return buildObjectPatternFromDestructuredImport(types, node)
+  }
+
+  const variableName = node.specifiers[0].local.name
+
+  return types.identifier(variableName)
+}
+
+function isDestructuredImportExpression(node) {
+  return node.specifiers.length !== 1 ||
+    node.specifiers[0].type !== 'ImportDefaultSpecifier'
+}
+
+function buildObjectPatternFromDestructuredImport(types, node) {
+  const properties = node.specifiers.map((specifier) => {
+    const key = types.identifier(specifier.imported.name)
+    const value = types.identifier(specifier.local.name)
+
+    return types.objectProperty(key, value)
+  })
+
+  return types.objectPattern(properties)
 }
 
 function requireFresh(filepath) {
