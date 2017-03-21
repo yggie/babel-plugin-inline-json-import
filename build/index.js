@@ -27,8 +27,8 @@ function babelPluginInlineJsonImports(_ref) {
 
           var moduleName = node.source.value;
 
-          if (moduleName.match(/\.json$/)) {
-            var variableName = node.specifiers[0].local.name;
+          if (moduleName.match(/\.json(!json)?$/)) {
+            var leftExpression = determineLeftExpression(t, node);
 
             var fileLocation = state.file.opts.filename;
             var filepath = null;
@@ -39,14 +39,43 @@ function babelPluginInlineJsonImports(_ref) {
               filepath = _path2.default.join(_path2.default.resolve(fileLocation), '..', moduleName);
             }
 
+            if (filepath.slice(-5) === '!json') {
+              filepath = filepath.slice(0, filepath.length - 5);
+            }
+
             var json = requireFresh(filepath);
 
-            path.replaceWith(t.variableDeclaration('const', [t.variableDeclarator(t.identifier(variableName), t.valueToNode(json))]));
+            path.replaceWith(t.variableDeclaration('const', [t.variableDeclarator(leftExpression, t.valueToNode(json))]));
           }
         }
       }
     }
   };
+}
+
+function determineLeftExpression(types, node) {
+  if (isDestructuredImportExpression(node)) {
+    return buildObjectPatternFromDestructuredImport(types, node);
+  }
+
+  var variableName = node.specifiers[0].local.name;
+
+  return types.identifier(variableName);
+}
+
+function isDestructuredImportExpression(node) {
+  return node.specifiers.length !== 1 || node.specifiers[0].type !== 'ImportDefaultSpecifier';
+}
+
+function buildObjectPatternFromDestructuredImport(types, node) {
+  var properties = node.specifiers.map(function (specifier) {
+    var key = types.identifier(specifier.imported.name);
+    var value = types.identifier(specifier.local.name);
+
+    return types.objectProperty(key, value);
+  });
+
+  return types.objectPattern(properties);
 }
 
 function requireFresh(filepath) {
