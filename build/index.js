@@ -30,22 +30,36 @@ function babelPluginInlineJsonImports(_ref) {
           if (moduleName.match(/\.json(!json)?$/)) {
             var leftExpression = determineLeftExpression(t, node);
 
-            var fileLocation = state.file.opts.filename;
-            var filepath = null;
-
-            if (fileLocation === 'unknown') {
-              filepath = moduleName;
-            } else {
-              filepath = _path2.default.join(_path2.default.resolve(fileLocation), '..', moduleName);
-            }
-
-            if (filepath.slice(-5) === '!json') {
-              filepath = filepath.slice(0, filepath.length - 5);
-            }
-
-            var json = requireFresh(filepath);
+            var json = requireModule(moduleName, state);
 
             path.replaceWith(t.variableDeclaration('const', [t.variableDeclarator(leftExpression, t.valueToNode(json))]));
+          }
+        }
+      },
+
+      VariableDeclaration: {
+        exit: function exit(path, state) {
+          var node = path.node;
+
+
+          var changed = false;
+          var newDeclarators = node.declarations.map(function (declaration) {
+            var init = declaration.init;
+
+
+            if (init.type === 'CallExpression' && init.callee.type === 'Identifier' && init.callee.name === 'require' && init.arguments.length === 1 && init.arguments[0].type === 'StringLiteral') {
+              changed = true;
+
+              var json = requireModule(init.arguments[0].value, state);
+
+              return t.variableDeclarator(declaration.id, t.valueToNode(json));
+            } else {
+              return declaration;
+            }
+          });
+
+          if (changed) {
+            path.replaceWith(t.variableDeclaration(node.kind, newDeclarators));
           }
         }
       }
@@ -76,6 +90,23 @@ function buildObjectPatternFromDestructuredImport(types, node) {
   });
 
   return types.objectPattern(properties);
+}
+
+function requireModule(moduleName, state) {
+  var fileLocation = state.file.opts.filename;
+  var filepath = null;
+
+  if (fileLocation === 'unknown') {
+    filepath = moduleName;
+  } else {
+    filepath = _path2.default.join(_path2.default.resolve(fileLocation), '..', moduleName);
+  }
+
+  if (filepath.slice(-5) === '!json') {
+    filepath = filepath.slice(0, filepath.length - 5);
+  }
+
+  return requireFresh(filepath);
 }
 
 function requireFresh(filepath) {

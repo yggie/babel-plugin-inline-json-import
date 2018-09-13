@@ -22,13 +22,15 @@ The plugin will transform the following statement:
 import json from './path/to/file.json';
 ```
 
+or
+
 to:
 
 ```js
-var json = { foo: "bar" };
+const json = { foo: "bar" };
 ```
 
-Simple as that!
+Simple as that! Both `require` and `import` are supported.
 
 ## Installation
 

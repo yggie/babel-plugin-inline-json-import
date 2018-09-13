@@ -22,8 +22,6 @@ describe('babel-plugin-inline-json-imports', () => {
     `))
   })
 
-
-
   it('inlines simple systemjs JSON imports', () => {
     const t = configureTransform()
     const result = t(`
@@ -92,12 +90,48 @@ describe('babel-plugin-inline-json-imports', () => {
     `))
   })
 
+  it('supports the require syntax', () => {
+    const t = configureTransform()
+    const result = t(`
+      var json = require('../test/fixtures/example.json')
+      var notJson = fake.require('../test/fixtures/example.json')
+
+      console.log(json)
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      var json = { example: true }
+      var notJson = fake.require('../test/fixtures/example.json')
+
+      console.log(json)
+    `))
+  })
+
+  it('supports the require syntax with complex declarations', () => {
+    const t = configureTransform()
+    const result = t(`
+      let json = require('../test/fixtures/example.json'),
+          notJson = fake.require('../test/fixtures/example.json'),
+          { example } = require('../test/fixtures/example.json')
+
+      console.log(json, example)
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      let json = { example: true },
+          notJson = fake.require('../test/fixtures/example.json'),
+          { example } = { example: true }
+
+      console.log(json, example)
+    `))
+  })
+
   function configureTransform(options = {}, isFile) {
     return function configuredTransform(string) {
       const transformOptions = {
         babelrc: false,
         presets: [],
-        plugins: [path.resolve('./src'), options],
+        plugins: [[path.resolve('./src'), options]],
       }
 
       if (isFile) {
