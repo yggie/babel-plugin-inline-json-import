@@ -126,6 +126,19 @@ describe('babel-plugin-inline-json-imports', () => {
     `))
   })
 
+  it('supports opt  variable declaration', () => {
+    const t = configureTransform()
+    const result = t(`
+      var a;
+      let c;
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      var a;
+      let c;
+    `))
+  })
+
   function configureTransform(options = {}, isFile) {
     return function configuredTransform(string) {
       const transformOptions = {

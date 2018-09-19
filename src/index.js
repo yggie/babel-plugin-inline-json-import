@@ -36,6 +36,7 @@ export default function babelPluginInlineJsonImports({ types: t }) {
             const { init } = declaration
 
             if (
+              init != null &&
               init.type === 'CallExpression' &&
               init.callee.type === 'Identifier' &&
               init.callee.name === 'require' &&
