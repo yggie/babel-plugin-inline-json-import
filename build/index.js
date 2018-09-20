@@ -47,7 +47,7 @@ function babelPluginInlineJsonImports(_ref) {
             var init = declaration.init;
 
 
-            if (init.type === 'CallExpression' && init.callee.type === 'Identifier' && init.callee.name === 'require' && init.arguments.length === 1 && init.arguments[0].type === 'StringLiteral') {
+            if (init != null && init.type === 'CallExpression' && init.callee.type === 'Identifier' && init.callee.name === 'require' && init.arguments.length === 1 && init.arguments[0].type === 'StringLiteral') {
               changed = true;
 
               var json = requireModule(init.arguments[0].value, state);
