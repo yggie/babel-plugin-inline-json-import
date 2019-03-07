@@ -139,6 +139,28 @@ describe('babel-plugin-inline-json-imports', () => {
     `))
   })
 
+  it('correctly ignores non-JSON files', () => {
+    const t = configureTransform()
+    const result = t(`
+      import json from '../test/fixtures/example.json'
+
+      import abc from 'abc'
+      import { a, b } from './foo.mp3';
+
+      const file = require('../src/index.js')
+      const example = require('./example')
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      const json = { example: true }
+      import abc from 'abc'
+      import { a, b } from './foo.mp3';
+
+      const file = require('../src/index.js')
+      const example = require('./example')
+    `))
+  })
+
   function configureTransform(options = {}, isFile) {
     return function configuredTransform(string) {
       const transformOptions = {

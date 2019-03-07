@@ -1,6 +1,8 @@
 import Path from 'path'
 import decache from 'decache'
 
+const SUPPORTED_MODULES_REGEX = /\.json(!json)?$/
+
 export default function babelPluginInlineJsonImports({ types: t }) {
   return {
     visitor: {
@@ -10,7 +12,7 @@ export default function babelPluginInlineJsonImports({ types: t }) {
 
           const moduleName = node.source.value
 
-          if (moduleName.match(/\.json(!json)?$/)) {
+          if (moduleName.match(SUPPORTED_MODULES_REGEX)) {
             const leftExpression = determineLeftExpression(t, node)
 
             const json = requireModule(moduleName, state)
@@ -41,7 +43,8 @@ export default function babelPluginInlineJsonImports({ types: t }) {
               init.callee.type === 'Identifier' &&
               init.callee.name === 'require' &&
               init.arguments.length === 1 &&
-              init.arguments[0].type === 'StringLiteral'
+              init.arguments[0].type === 'StringLiteral' &&
+              init.arguments[0].value.match(SUPPORTED_MODULES_REGEX)
             ) {
               changed = true
 

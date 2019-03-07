@@ -15,6 +15,8 @@ var _decache2 = _interopRequireDefault(_decache);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
+var SUPPORTED_MODULES_REGEX = /\.json(!json)?$/;
+
 function babelPluginInlineJsonImports(_ref) {
   var t = _ref.types;
 
@@ -27,7 +29,7 @@ function babelPluginInlineJsonImports(_ref) {
 
           var moduleName = node.source.value;
 
-          if (moduleName.match(/\.json(!json)?$/)) {
+          if (moduleName.match(SUPPORTED_MODULES_REGEX)) {
             var leftExpression = determineLeftExpression(t, node);
 
             var json = requireModule(moduleName, state);
@@ -47,7 +49,7 @@ function babelPluginInlineJsonImports(_ref) {
             var init = declaration.init;
 
 
-            if (init != null && init.type === 'CallExpression' && init.callee.type === 'Identifier' && init.callee.name === 'require' && init.arguments.length === 1 && init.arguments[0].type === 'StringLiteral') {
+            if (init != null && init.type === 'CallExpression' && init.callee.type === 'Identifier' && init.callee.name === 'require' && init.arguments.length === 1 && init.arguments[0].type === 'StringLiteral' && init.arguments[0].value.match(SUPPORTED_MODULES_REGEX)) {
               changed = true;
 
               var json = requireModule(init.arguments[0].value, state);
