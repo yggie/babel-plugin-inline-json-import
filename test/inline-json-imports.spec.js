@@ -37,21 +37,6 @@ describe('babel-plugin-inline-json-imports', () => {
     `))
   })
 
-  it('supports destructuring of the JSON imports', () => {
-    const t = configureTransform()
-    const result = t(`
-      import {example} from '../test/fixtures/example.json'
-
-      console.log(example)
-    `)
-
-    expect(normalize(result.code)).to.equal(normalize(`
-      const { example: example } = { example: true }
-
-      console.log(example)
-    `))
-  })
-
   it('does not inline other kinds of imports', () => {
     const t = configureTransform()
     const result = t(`
@@ -158,6 +143,83 @@ describe('babel-plugin-inline-json-imports', () => {
 
       const file = require('../src/index.js')
       const example = require('./example')
+    `))
+  })
+
+  it('supports named import from a JSON', () => {
+    const t = configureTransform()
+    const result = t(`
+      import { used } from '../test/fixtures/named-example.json'
+
+      console.log(used)
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      const used = true
+
+      console.log(used)
+    `))
+  })
+
+  it('supports named import with a alias name from a JSON', () => {
+    const t = configureTransform()
+    const result = t(`
+      import { used as otherName } from '../test/fixtures/named-example.json'
+
+      console.log(otherName)
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      const otherName = true
+
+      console.log(otherName)
+    `))
+  })
+
+  it('supports two named import from a JSON', () => {
+    const t = configureTransform()
+    const result = t(`
+      import { used, otherUsed } from '../test/fixtures/named-example.json'
+
+      console.log(used, otherName)
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      const used = true
+      const otherUsed = true
+
+      console.log(used, otherName)
+    `))
+  })
+
+  it('supports two named import with a alias name from a JSON', () => {
+    const t = configureTransform()
+    const result = t(`
+      import { used as one, otherUsed as two } from '../test/fixtures/named-example.json'
+
+      console.log(one, two)
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      const one = true
+      const two = true
+
+      console.log(one, two)
+    `))
+  })
+
+  it('supports kebab named import from a JSON', () => {
+    const t = configureTransform()
+    const result = t(`
+      import { kebabExample } from '../test/fixtures/named-example.json'
+
+      console.log(kebabExample)
+    `)
+
+    expect(normalize(result.code)).to.equal(normalize(`
+      const kebabExample = true
+
+      console.log(kebabExample)
     `))
   })
 

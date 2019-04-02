@@ -1,5 +1,6 @@
 import Path from 'path'
 import decache from 'decache'
+import decamelize from 'decamelize'
 
 const SUPPORTED_MODULES_REGEX = /\.json(!json)?$/
 
@@ -14,17 +15,27 @@ export default function babelPluginInlineJsonImports({ types: t }) {
 
           if (moduleName.match(SUPPORTED_MODULES_REGEX)) {
             const leftExpression = determineLeftExpression(t, node)
-
             const json = requireModule(moduleName, state)
 
-            path.replaceWith(
-              t.variableDeclaration('const', [
+            if (leftExpression.type === 'ObjectPattern') {
+              // Named import
+              const declarations = leftExpression.properties.map(property => t.variableDeclaration('const', [
                 t.variableDeclarator(
-                  leftExpression,
-                  t.valueToNode(json),
+                  t.identifier(property.value.name),
+                  t.valueToNode(json[property.key.name] || json[decamelize(property.key.name, '-')]),
                 ),
-              ])
-            )
+              ]));
+              path.replaceWithMultiple(declarations)
+            } else {
+              path.replaceWith(
+                t.variableDeclaration('const', [
+                  t.variableDeclarator(
+                    leftExpression,
+                    t.valueToNode(json),
+                  ),
+                ])
+              )
+            }
           }
         },
       },
