@@ -13,6 +13,10 @@ var _decache = require('decache');
 
 var _decache2 = _interopRequireDefault(_decache);
 
+var _decamelize = require('decamelize');
+
+var _decamelize2 = _interopRequireDefault(_decamelize);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 var SUPPORTED_MODULES_REGEX = /\.json(!json)?$/;
@@ -31,10 +35,17 @@ function babelPluginInlineJsonImports(_ref) {
 
           if (moduleName.match(SUPPORTED_MODULES_REGEX)) {
             var leftExpression = determineLeftExpression(t, node);
-
             var json = requireModule(moduleName, state);
 
-            path.replaceWith(t.variableDeclaration('const', [t.variableDeclarator(leftExpression, t.valueToNode(json))]));
+            if (leftExpression.type === 'ObjectPattern') {
+              // Named import
+              var declarations = leftExpression.properties.map(function (property) {
+                return t.variableDeclaration('const', [t.variableDeclarator(t.identifier(property.value.name), t.valueToNode(json[property.key.name] || json[(0, _decamelize2.default)(property.key.name, '-')]))]);
+              });
+              path.replaceWithMultiple(declarations);
+            } else {
+              path.replaceWith(t.variableDeclaration('const', [t.variableDeclarator(leftExpression, t.valueToNode(json))]));
+            }
           }
         }
       },
