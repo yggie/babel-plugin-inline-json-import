@@ -20,7 +20,7 @@ interface Babel {
 }
 
 interface PluginOptions {
-  match?: string
+  match?: string | RegExp
   matchFlags?: string
 }
 
@@ -354,6 +354,10 @@ function getMatcher(state: PluginScope): RegExp {
   const {match, matchFlags} = state.opts || {}
   if (!match) {
     return DEFAULT_MATCHER
+  }
+
+  if (match instanceof RegExp) {
+    return match
   }
 
   return match && matchFlags ? new RegExp(match, matchFlags) : new RegExp(match)
