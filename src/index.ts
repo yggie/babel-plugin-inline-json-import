@@ -64,12 +64,13 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
         exit(path, state) {
           const {node} = path
           const moduleName = node.source.value
-          const filenameMatcher = getMatcher(state)
-          if (!filenameMatcher.test(moduleName)) {
+          const jsonPath = tryResolvePath(moduleName, state)
+          const pathMatcher = getMatcher(state)
+          if (!pathMatcher.test(jsonPath)) {
             return
           }
 
-          const json = loadJsonFile(moduleName, state)
+          const json = loadJsonFile(jsonPath, moduleName, state)
 
           // ex: `import pkg from '../package.json'`
           // --- OR ---
@@ -135,13 +136,14 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
               return declaration
             }
 
-            const jsonPath = declaration.init.arguments[0].value
-            const filenameMatcher = getMatcher(state)
-            if (!filenameMatcher.test(jsonPath)) {
+            const moduleName = declaration.init.arguments[0].value
+            const jsonPath = tryResolvePath(moduleName, state)
+            const pathMatcher = getMatcher(state)
+            if (!pathMatcher.test(jsonPath)) {
               return declaration
             }
 
-            const json = loadJsonFile(jsonPath, state)
+            const json = loadJsonFile(jsonPath, moduleName, state)
 
             if (t.isIdentifier(declaration.id)) {
               changed = true
@@ -359,8 +361,8 @@ function buildMixedNamedImport(
   ]
 }
 
-function loadJsonFile(moduleName: string, state: PluginScope): unknown {
-  const {filename, cwd} = state
+function tryResolvePath(moduleName: string, state: PluginScope): string {
+  const {filename} = state
   let filePath = null
 
   if (typeof filename === 'undefined') {
@@ -369,10 +371,17 @@ function loadJsonFile(moduleName: string, state: PluginScope): unknown {
     filePath = resolvePath(getParentDir(filename), moduleName)
   }
 
+  return filePath
+}
+
+function loadJsonFile(modulePath: string, originalRequest: string, state: PluginScope): unknown {
+  const {filename, cwd} = state
+  let filePath = modulePath
+
   if (!existsSync(filePath)) {
     filePath = filename
-      ? resolveFrom(getParentDir(filename), moduleName)
-      : resolveFrom(cwd, moduleName)
+      ? resolveFrom(getParentDir(filename), originalRequest)
+      : resolveFrom(cwd, originalRequest)
   }
 
   const content = readFileSync(filePath, 'utf8')
