@@ -3,6 +3,14 @@ import {dirname as getParentDir, resolve as resolvePath} from 'node:path'
 import type {PluginPass} from '@babel/core'
 import type * as BabelTypes from '@babel/types'
 import type {Visitor} from '@babel/traverse'
+import type {
+  DefaultOnlyImportDeclaration,
+  FullyDestructuredImportDeclaration,
+  JsonRequireCall,
+  MixedNamedImportDeclaration,
+  MixedNamespaceImportDeclaration,
+  NamespaceOnlyImportDeclaration,
+} from './types'
 
 interface Babel {
   types: typeof BabelTypes
@@ -11,26 +19,6 @@ interface Babel {
 interface PluginOptions {}
 
 const SUPPORTED_MODULES_REGEX = /\.json$/
-
-type FullyDestructuredImportDeclaration = Omit<BabelTypes.ImportDeclaration, 'specifiers'> & {
-  specifiers: BabelTypes.ImportSpecifier[]
-}
-
-type DefaultOnlyImportDeclaration = Omit<BabelTypes.ImportDeclaration, 'specifiers'> & {
-  specifiers: [BabelTypes.ImportDefaultSpecifier]
-}
-
-type NamespaceOnlyImportDeclaration = Omit<BabelTypes.ImportDeclaration, 'specifiers'> & {
-  specifiers: [BabelTypes.ImportNamespaceSpecifier]
-}
-
-type MixedNamespaceImportDeclaration = Omit<BabelTypes.ImportDeclaration, 'specifiers'> & {
-  specifiers: [BabelTypes.ImportDefaultSpecifier, ...BabelTypes.ImportNamespaceSpecifier[]]
-}
-
-type MixedNamedImportDeclaration = Omit<BabelTypes.ImportDeclaration, 'specifiers'> & {
-  specifiers: [BabelTypes.ImportDefaultSpecifier, ...BabelTypes.ImportSpecifier[]]
-}
 
 export = function babelPluginInlineJsonImports({types: t}: Babel): {
   visitor: Visitor<PluginPass>
@@ -101,19 +89,10 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
 
           let changed = false
           const newDeclarators = node.declarations.map((declaration) => {
-            const {init} = declaration
-
-            if (
-              init &&
-              init.type === 'CallExpression' &&
-              init.callee.type === 'Identifier' &&
-              init.callee.name === 'require' &&
-              init.arguments.length === 1 &&
-              init.arguments[0].type === 'StringLiteral' &&
-              SUPPORTED_MODULES_REGEX.test(init.arguments[0].value)
-            ) {
+            if (isJsonRequireCall(declaration)) {
               changed = true
 
+              const {init} = declaration
               const json = loadJsonFile(init.arguments[0].value, state)
 
               return t.variableDeclarator(declaration.id, t.valueToNode(json))
@@ -129,6 +108,19 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
       },
     },
   }
+}
+
+function isJsonRequireCall(decl: BabelTypes.VariableDeclarator): decl is JsonRequireCall {
+  const init = decl.init
+  return (
+    (init || false) &&
+    init.type === 'CallExpression' &&
+    init.callee.type === 'Identifier' &&
+    init.callee.name === 'require' &&
+    init.arguments.length === 1 &&
+    init.arguments[0].type === 'StringLiteral' &&
+    SUPPORTED_MODULES_REGEX.test(init.arguments[0].value)
+  )
 }
 
 function isMixedNamespaceImportExpression(
