@@ -4,3 +4,4 @@ src
 .babelrc
 .eslintrc
 tsconfig.json
+.github
