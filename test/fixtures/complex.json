@@ -1,0 +1,8 @@
+{
+  "example": true,
+  "deep": {
+    "nested": {
+      "array": [1, 2, 3]
+    }
+  }
+}
