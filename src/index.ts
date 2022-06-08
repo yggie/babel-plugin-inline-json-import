@@ -1,8 +1,10 @@
-import {readFileSync} from 'node:fs'
+import {readFileSync, existsSync} from 'node:fs'
 import {dirname as getParentDir, resolve as resolvePath} from 'node:path'
+import resolveFrom from 'resolve-from'
 import type {PluginPass} from '@babel/core'
 import type * as BabelTypes from '@babel/types'
 import type {Visitor} from '@babel/traverse'
+
 import type {
   DefaultOnlyImportDeclaration,
   DestructuredArrayJsonRequireCall,
@@ -25,6 +27,7 @@ interface PluginOptions {
 }
 
 interface PluginScope extends Omit<PluginPass, 'opts'> {
+  cwd: string
   opts?: PluginOptions
   filename?: string
   hoistedImports: BabelTypes.VariableDeclaration[]
@@ -357,13 +360,19 @@ function buildMixedNamedImport(
 }
 
 function loadJsonFile(moduleName: string, state: PluginScope): unknown {
-  const {filename} = state
+  const {filename, cwd} = state
   let filePath = null
 
   if (typeof filename === 'undefined') {
     filePath = moduleName
   } else {
     filePath = resolvePath(getParentDir(filename), moduleName)
+  }
+
+  if (!existsSync(filePath)) {
+    filePath = filename
+      ? resolveFrom(getParentDir(filename), moduleName)
+      : resolveFrom(cwd, moduleName)
   }
 
   const content = readFileSync(filePath, 'utf8')

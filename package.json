@@ -46,5 +46,8 @@
     "printWidth": 100,
     "bracketSpacing": false,
     "singleQuote": true
+  },
+  "dependencies": {
+    "resolve-from": "^5.0.0"
   }
 }

@@ -574,6 +574,44 @@ describe('babel-plugin-inline-json-imports', () => {
     )
   })
 
+  it('can import from node_modules', () => {
+    const t = configureTransform()
+    const result = t(`
+      import {name} from 'mocha/package.json'
+
+      console.log(name)
+    `)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      const name = "mocha"
+
+      console.log(name)
+    `)
+    )
+  })
+
+  it('can import from node_modules relative to source file', () => {
+    const contents = `
+      import {fake} from 'fake-module/some.json'
+
+      console.log(fake)
+    `
+    const file = tmp.fileSync({postfix: '.js', dir: './test/tmp'})
+    fs.writeFileSync(file.name, contents)
+
+    const t = configureTransform({}, true)
+    const result = t(file.name)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      const fake = true
+
+      console.log(fake)
+    `)
+    )
+  })
+
   function configureTransform(options, isFile) {
     return function configuredTransform(string) {
       const transformOptions = {
