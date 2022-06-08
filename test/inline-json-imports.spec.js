@@ -203,7 +203,7 @@ describe('babel-plugin-inline-json-imports', () => {
     expect(normalize(result.code)).to.equal(
       normalize(`
       const allOfIt = { delicious: true, "\\uD83E\\uDD4C": "curling" }
-      const delicious = allOfIt.delicious 
+      const delicious = allOfIt.delicious
       const evenWithEmoji = allOfIt["🥌"]
 
       console.log(allOfIt.delicious === delicious)
@@ -357,7 +357,7 @@ describe('babel-plugin-inline-json-imports', () => {
 
     expect(normalize(result.code)).to.equal(
       normalize(`
-      var example = true, 
+      var example = true,
           deepObj = {
             nested: {
               array: [1, 2, 3]
@@ -399,7 +399,7 @@ describe('babel-plugin-inline-json-imports', () => {
 
     expect(normalize(result.code)).to.equal(
       normalize(`
-      var first = "1st", 
+      var first = "1st",
           third = "3rd",
           rest = ["4th", "5th"]
 
@@ -454,12 +454,122 @@ describe('babel-plugin-inline-json-imports', () => {
 
     expect(normalize(result.code)).to.equal(
       normalize(`
-      const json = { example: true }
       import abc from 'abc'
       import { a, b } from './foo.mp3';
 
+      const json = { example: true }
       const file = require('../src/index.js')
       const example = require('./example')
+    `)
+    )
+  })
+
+  it('handles order of imports (default imports)', () => {
+    const t = configureTransform()
+
+    const result = t(`
+      import path from 'path'
+      import json from './test/fixtures/example.json'
+      import fs from 'fs'
+
+      console.log(json)
+    `)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      import path from 'path'
+      import fs from 'fs'
+      const json = {
+        example: true
+      }
+
+      console.log(json)
+    `)
+    )
+  })
+
+  it('handles order of imports (default imports) when it is the only import', () => {
+    const t = configureTransform()
+    const result = t(`
+      import json from './test/fixtures/example.json'
+
+      console.log(json)
+    `)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      const json = {
+        example: true
+      }
+
+      console.log(json)
+    `)
+    )
+  })
+
+  it('handles order of imports (named imports)', () => {
+    const t = configureTransform()
+    const result = t(`
+      import path from 'path'
+      import fs from 'fs'
+      import {example} from './test/fixtures/example.json'
+
+      console.log(example)
+    `)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      import path from 'path'
+      import fs from 'fs'
+      const example = true
+
+      console.log(example)
+    `)
+    )
+  })
+
+  it('handles order of imports (mixed namespace + default)', () => {
+    const t = configureTransform()
+    const result = t(`
+      import path from 'path'
+      import all, * as everything from './test/fixtures/string.json'
+      import fs from 'fs'
+
+      console.log(all, everything)
+    `)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      import path from 'path'
+      import fs from 'fs'
+
+      const all = "json-string"
+      const everything = all
+
+      console.log(all, everything)
+    `)
+    )
+  })
+
+  it('handles order of imports (mixed default + named)', () => {
+    const t = configureTransform()
+    const result = t(`
+      import all, {delicious as myExample} from './test/fixtures/keys.json'
+      import path from 'path'
+      import fs from 'fs'
+
+      console.log(all, myExample)
+    `)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      import path from 'path'
+      import fs from 'fs'
+
+      const all = {delicious: true, "\\uD83E\\uDD4C": "curling"}
+      const myExample = all.delicious
+
+      console.log(all, myExample)
     `)
     )
   })

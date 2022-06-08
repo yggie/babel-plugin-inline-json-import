@@ -27,15 +27,36 @@ interface PluginOptions {
 interface PluginScope extends Omit<PluginPass, 'opts'> {
   opts?: PluginOptions
   filename?: string
+  hoistedImports: BabelTypes.VariableDeclaration[]
 }
 
 const DEFAULT_MATCHER = /\.json$/i
 
 export = function babelPluginInlineJsonImports({types: t}: Babel): {
   visitor: Visitor<PluginScope>
+  pre: (this: PluginScope) => void
 } {
   return {
+    pre() {
+      this.hoistedImports = []
+    },
     visitor: {
+      Program: {
+        exit(path) {
+          if (this.hoistedImports.length === 0) {
+            return
+          }
+
+          const imports = path.get('body').filter((p) => p.isImportDeclaration())
+          const lastImport = imports.pop()
+
+          if (lastImport) {
+            lastImport.insertAfter(this.hoistedImports)
+          } else if (!lastImport) {
+            path.node.body.unshift(...this.hoistedImports)
+          }
+        },
+      },
       ImportDeclaration: {
         exit(path, state) {
           const {node} = path
@@ -54,12 +75,12 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
             isDefaultOnlyImportDeclaration(t, node) ||
             isNamespaceOnlyImportDeclaration(t, node)
           ) {
-            const variableName = node.specifiers[0].local.name
-            path.replaceWith(
+            this.hoistedImports.push(
               t.variableDeclaration('const', [
-                t.variableDeclarator(t.identifier(variableName), t.valueToNode(json)),
+                t.variableDeclarator(node.specifiers[0].local, t.valueToNode(json)),
               ])
             )
+            path.remove()
             return
           }
 
@@ -72,15 +93,17 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
               )
             }
 
-            path.replaceWithMultiple(
-              buildVariableDeclarationsFromDestructuredImports(t, node, json)
+            this.hoistedImports.push(
+              ...buildVariableDeclarationsFromDestructuredImports(t, node, json)
             )
+            path.remove()
             return
           }
 
           // ex: `import allOfIt, * as TheJsonData from './data.json'`
           if (isMixedNamespaceImportExpression(t, node)) {
-            path.replaceWithMultiple(buildMixedNamespaceImport(t, node, json))
+            this.hoistedImports.push(...buildMixedNamespaceImport(t, node, json))
+            path.remove()
             return
           }
 
@@ -92,7 +115,8 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
               )
             }
 
-            path.replaceWithMultiple(buildMixedNamedImport(t, node, json))
+            this.hoistedImports.push(...buildMixedNamedImport(t, node, json))
+            path.remove()
             return
           }
         },
