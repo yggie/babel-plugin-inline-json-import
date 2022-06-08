@@ -278,6 +278,35 @@ describe('babel-plugin-inline-json-imports', () => {
     )
   })
 
+  it('can be given pattern to match on', () => {
+    const contentsYes = `
+      import json from '../fixtures/example.json'
+      console.log(json)
+    `
+    const contentsNo = `
+      import json from '../fixtures/string.json'
+      console.log(json)
+    `
+
+    const yesFile = tmp.fileSync({postfix: '.js', dir: './test/tmp'})
+    const noFile = tmp.fileSync({postfix: '.js', dir: './test/tmp'})
+    fs.writeFileSync(yesFile.name, contentsYes)
+    fs.writeFileSync(noFile.name, contentsNo)
+
+    const t = configureTransform({match: /example\.json$/}, true)
+    const resultYes = t(yesFile.name)
+    const resultNo = t(noFile.name)
+
+    expect(normalize(resultYes.code)).to.equal(
+      normalize(`
+      const json = { example: true }
+      console.log(json)
+    `)
+    )
+
+    expect(normalize(resultNo.code)).to.equal(normalize(contentsNo))
+  })
+
   it('supports the require syntax', () => {
     const t = configureTransform()
     const result = t(`

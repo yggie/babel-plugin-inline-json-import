@@ -19,20 +19,29 @@ interface Babel {
   types: typeof BabelTypes
 }
 
-interface PluginOptions {}
+interface PluginOptions {
+  match?: string
+  matchFlags?: string
+}
 
-const SUPPORTED_MODULES_REGEX = /\.json$/
+interface PluginScope extends Omit<PluginPass, 'opts'> {
+  opts?: PluginOptions
+  filename?: string
+}
+
+const DEFAULT_MATCHER = /\.json$/i
 
 export = function babelPluginInlineJsonImports({types: t}: Babel): {
-  visitor: Visitor<PluginPass>
+  visitor: Visitor<PluginScope>
 } {
   return {
     visitor: {
       ImportDeclaration: {
-        exit(path, state = {} as any) {
+        exit(path, state) {
           const {node} = path
           const moduleName = node.source.value
-          if (!SUPPORTED_MODULES_REGEX.test(moduleName)) {
+          const filenameMatcher = getMatcher(state)
+          if (!filenameMatcher.test(moduleName)) {
             return
           }
 
@@ -100,6 +109,11 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
             }
 
             const jsonPath = declaration.init.arguments[0].value
+            const filenameMatcher = getMatcher(state)
+            if (!filenameMatcher.test(jsonPath)) {
+              return declaration
+            }
+
             const json = loadJsonFile(jsonPath, state)
 
             if (t.isIdentifier(declaration.id)) {
@@ -151,7 +165,6 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
                 .filter((el): el is BabelTypes.VariableDeclarator => el !== null)
             }
 
-            //console.log(declaration)
             return declaration
           })
 
@@ -174,8 +187,7 @@ function isJsonRequireCall(
     t.isIdentifier(init.callee) &&
     init.callee.name === 'require' &&
     init.arguments.length === 1 &&
-    t.isStringLiteral(init.arguments[0]) &&
-    SUPPORTED_MODULES_REGEX.test(init.arguments[0].value)
+    t.isStringLiteral(init.arguments[0])
   )
 }
 
@@ -320,14 +332,14 @@ function buildMixedNamedImport(
   ]
 }
 
-function loadJsonFile(moduleName: string, state: PluginPass): unknown {
-  const {filename: fileLocation} = state
+function loadJsonFile(moduleName: string, state: PluginScope): unknown {
+  const {filename} = state
   let filePath = null
 
-  if (typeof fileLocation === 'undefined') {
+  if (typeof filename === 'undefined') {
     filePath = moduleName
   } else {
-    filePath = resolvePath(getParentDir(fileLocation), moduleName)
+    filePath = resolvePath(getParentDir(filename), moduleName)
   }
 
   const content = readFileSync(filePath, 'utf8')
@@ -336,4 +348,13 @@ function loadJsonFile(moduleName: string, state: PluginPass): unknown {
 
 function isRecord(obj: unknown): obj is Record<string, unknown> {
   return typeof obj === 'object' && !Array.isArray(obj) && obj !== null
+}
+
+function getMatcher(state: PluginScope): RegExp {
+  const {match, matchFlags} = state.opts || {}
+  if (!match) {
+    return DEFAULT_MATCHER
+  }
+
+  return match && matchFlags ? new RegExp(match, matchFlags) : new RegExp(match)
 }

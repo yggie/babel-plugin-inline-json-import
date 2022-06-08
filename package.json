@@ -24,6 +24,7 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
+    "pretest": "npm run build",
     "test": "mocha",
     "prepublishOnly": "npm run build"
   },
