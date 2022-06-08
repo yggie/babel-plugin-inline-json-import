@@ -5,11 +5,14 @@ import type * as BabelTypes from '@babel/types'
 import type {Visitor} from '@babel/traverse'
 import type {
   DefaultOnlyImportDeclaration,
+  DestructuredArrayJsonRequireCall,
   FullyDestructuredImportDeclaration,
+  FullyDestructuredJsonRequireCall,
   JsonRequireCall,
   MixedNamedImportDeclaration,
   MixedNamespaceImportDeclaration,
   NamespaceOnlyImportDeclaration,
+  SimpleObjectProperty,
 } from './types'
 
 interface Babel {
@@ -38,7 +41,10 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
           // ex: `import pkg from '../package.json'`
           // --- OR ---
           // ex: `import * as pkg from '../package.json'`
-          if (isDefaultOnlyImportDeclaration(node) || isNamespaceOnlyImportDeclaration(node)) {
+          if (
+            isDefaultOnlyImportDeclaration(t, node) ||
+            isNamespaceOnlyImportDeclaration(t, node)
+          ) {
             const variableName = node.specifiers[0].local.name
             path.replaceWith(
               t.variableDeclaration('const', [
@@ -50,7 +56,7 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
 
           // ex: `import {foo, bar} from './someFile.json'`
           // ex: `import {foo as bar} from './someFile.json'`
-          if (isDestructuredImportDeclaration(node)) {
+          if (isDestructuredImportDeclaration(t, node)) {
             if (!isRecord(json)) {
               throw new Error(
                 `Attempting to destructure from non-object JSON module "${moduleName}"`
@@ -64,13 +70,13 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
           }
 
           // ex: `import allOfIt, * as TheJsonData from './data.json'`
-          if (isMixedNamespaceImportExpression(node)) {
+          if (isMixedNamespaceImportExpression(t, node)) {
             path.replaceWithMultiple(buildMixedNamespaceImport(t, node, json))
             return
           }
 
           // ex: `import allOfIt, {someOfIt} from './data.json'`
-          if (isMixedNamedImportExpression(node)) {
+          if (isMixedNamedImportExpression(t, node)) {
             if (!isRecord(json)) {
               throw new Error(
                 `Attempting to destructure from non-object JSON module "${moduleName}"`
@@ -88,16 +94,64 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
           const {node} = path
 
           let changed = false
-          const newDeclarators = node.declarations.map((declaration) => {
-            if (isJsonRequireCall(declaration)) {
+          const newDeclarators = node.declarations.flatMap((declaration) => {
+            if (!isJsonRequireCall(t, declaration)) {
+              return declaration
+            }
+
+            const jsonPath = declaration.init.arguments[0].value
+            const json = loadJsonFile(jsonPath, state)
+
+            if (t.isIdentifier(declaration.id)) {
               changed = true
-
-              const {init} = declaration
-              const json = loadJsonFile(init.arguments[0].value, state)
-
               return t.variableDeclarator(declaration.id, t.valueToNode(json))
             }
 
+            // This is for _simple_ destructuring only, currently. In other words:
+            // ex: `const {foo, bar} = require('./someJson.json')`
+            if (isDestructuredRequireDeclaration(t, declaration)) {
+              if (!isRecord(json)) {
+                throw new Error(
+                  `Attempting to destructure from non-object JSON module "${jsonPath}"`
+                )
+              }
+
+              changed = true
+              return declaration.id.properties.map((prop) =>
+                t.variableDeclarator(prop.value, t.valueToNode(json[prop.key.name]))
+              )
+            }
+
+            // ex: const [first, , third, ...rest] = require('./someArray.json')
+            // ex: const [firstChar] = require('./someString.json')
+            if (isDestructuredArrayRequireDeclaration(t, declaration)) {
+              if (!Array.isArray(json) && typeof json !== 'string') {
+                throw new Error(
+                  `Attempting to positionally destructure from non-array/string JSON module "${jsonPath}"`
+                )
+              }
+
+              changed = true
+              return declaration.id.elements
+                .map((el, index) => {
+                  if (el === null) {
+                    return null
+                  }
+
+                  if (t.isIdentifier(el)) {
+                    return t.variableDeclarator(el, t.valueToNode(json[index]))
+                  }
+
+                  if (!t.isIdentifier(el.argument)) {
+                    throw new Error('Unrecognized rest spread argument')
+                  }
+
+                  return t.variableDeclarator(el.argument, t.valueToNode(json.slice(index)))
+                })
+                .filter((el): el is BabelTypes.VariableDeclarator => el !== null)
+            }
+
+            //console.log(declaration)
             return declaration
           })
 
@@ -110,62 +164,106 @@ export = function babelPluginInlineJsonImports({types: t}: Babel): {
   }
 }
 
-function isJsonRequireCall(decl: BabelTypes.VariableDeclarator): decl is JsonRequireCall {
+function isJsonRequireCall(
+  t: typeof BabelTypes,
+  decl: BabelTypes.VariableDeclarator
+): decl is JsonRequireCall {
   const init = decl.init
   return (
-    (init || false) &&
-    init.type === 'CallExpression' &&
-    init.callee.type === 'Identifier' &&
+    t.isCallExpression(init) &&
+    t.isIdentifier(init.callee) &&
     init.callee.name === 'require' &&
     init.arguments.length === 1 &&
-    init.arguments[0].type === 'StringLiteral' &&
+    t.isStringLiteral(init.arguments[0]) &&
     SUPPORTED_MODULES_REGEX.test(init.arguments[0].value)
   )
 }
 
 function isMixedNamespaceImportExpression(
+  t: typeof BabelTypes,
   node: BabelTypes.ImportDeclaration
 ): node is MixedNamespaceImportDeclaration {
   if (node.specifiers.length !== 2) {
     return false
   }
 
-  const hasDefault = node.specifiers[0].type === 'ImportDefaultSpecifier'
-  const hasNamespace = node.specifiers[1].type === 'ImportNamespaceSpecifier'
+  const hasDefault = t.isImportDefaultSpecifier(node.specifiers[0])
+  const hasNamespace = t.isImportNamespaceSpecifier(node.specifiers[1])
   return hasDefault && hasNamespace
 }
 
 function isMixedNamedImportExpression(
+  t: typeof BabelTypes,
   node: BabelTypes.ImportDeclaration
 ): node is MixedNamedImportDeclaration {
   if (node.specifiers.length < 2) {
     return false
   }
 
-  const hasDefault = node.specifiers[0].type === 'ImportDefaultSpecifier'
-  const restIsNamed = node.specifiers
-    .slice(1)
-    .every((specifier) => specifier.type === 'ImportSpecifier')
+  const hasDefault = t.isImportDefaultSpecifier(node.specifiers[0])
+  const restIsNamed = node.specifiers.slice(1).every((specifier) => t.isImportSpecifier(specifier))
 
   return hasDefault && restIsNamed
 }
 
 function isDefaultOnlyImportDeclaration(
+  t: typeof BabelTypes,
   node: BabelTypes.ImportDeclaration
 ): node is DefaultOnlyImportDeclaration {
-  return node.specifiers.length === 1 && node.specifiers[0].type === 'ImportDefaultSpecifier'
+  return node.specifiers.length === 1 && t.isImportDefaultSpecifier(node.specifiers[0])
 }
 
 function isNamespaceOnlyImportDeclaration(
+  t: typeof BabelTypes,
   node: BabelTypes.ImportDeclaration
 ): node is NamespaceOnlyImportDeclaration {
-  return node.specifiers.length === 1 && node.specifiers[0].type === 'ImportNamespaceSpecifier'
+  return node.specifiers.length === 1 && t.isImportNamespaceSpecifier(node.specifiers[0])
 }
 
 function isDestructuredImportDeclaration(
+  t: typeof BabelTypes,
   node: BabelTypes.ImportDeclaration
 ): node is FullyDestructuredImportDeclaration {
-  return node.specifiers.every((specifier) => specifier.type === 'ImportSpecifier')
+  return node.specifiers.every((specifier) => t.isImportSpecifier(specifier))
+}
+
+function isDestructuredRequireDeclaration(
+  t: typeof BabelTypes,
+  node: JsonRequireCall
+): node is FullyDestructuredJsonRequireCall {
+  return (
+    t.isObjectPattern(node.id) &&
+    node.id.properties.every((prop) => isSimpleObjectProperty(t, prop))
+  )
+}
+
+function isDestructuredArrayRequireDeclaration(
+  t: typeof BabelTypes,
+  node: JsonRequireCall
+): node is DestructuredArrayJsonRequireCall {
+  if (!t.isArrayPattern(node.id)) {
+    return false
+  }
+
+  const elements = node.id.elements
+  const last = elements[elements.length - 1]
+  const lastIsValid = t.isRestElement(last) || t.isIdentifier(last)
+  if (!lastIsValid) {
+    return false
+  }
+
+  if (elements.length === 1) {
+    return true
+  }
+
+  return elements.slice(0, -1).every((el) => t.isIdentifier(el) || el === null)
+}
+
+function isSimpleObjectProperty(
+  t: typeof BabelTypes,
+  node: BabelTypes.ObjectProperty | BabelTypes.RestElement
+): node is SimpleObjectProperty {
+  return t.isObjectProperty(node) && t.isIdentifier(node.key) && t.isIdentifier(node.value)
 }
 
 function buildVariableDeclarationsFromDestructuredImports(
@@ -174,7 +272,7 @@ function buildVariableDeclarationsFromDestructuredImports(
   json: Record<string, unknown>
 ): BabelTypes.VariableDeclaration[] {
   return node.specifiers.map(({imported, local}) => {
-    const sourceProp = imported.type === 'StringLiteral' ? imported.value : imported.name
+    const sourceProp = t.isStringLiteral(imported) ? imported.value : imported.name
     const alias = t.identifier(local.name)
     const value = sourceProp in json ? json[sourceProp] : undefined
     return t.variableDeclaration('const', [t.variableDeclarator(alias, t.valueToNode(value))])
@@ -214,7 +312,7 @@ function buildMixedNamedImport(
           t.memberExpression(
             defaultImport.local,
             specifier.imported,
-            specifier.imported.type === 'StringLiteral'
+            t.isStringLiteral(specifier.imported)
           )
         ),
       ])

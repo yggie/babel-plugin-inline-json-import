@@ -36,7 +36,7 @@ describe('babel-plugin-inline-json-imports', () => {
 
     expect(normalize(result.code)).to.equal(
       normalize(`
-      const arr = ["first", "second", "third"]
+      const arr = ["1st", "2nd", "3rd", "4th", "5th"]
       const num = 1337
       const str = "json-string"
       const nil = null
@@ -311,9 +311,87 @@ describe('babel-plugin-inline-json-imports', () => {
       normalize(`
       let json = { example: true },
           notJson = fake.require('./test/fixtures/example.json'),
-          { example } = { example: true }
+          example = true
 
       console.log(json, example)
+    `)
+    )
+  })
+
+  it('supports destructuring require statements', () => {
+    const t = configureTransform()
+    const result = t(`
+      var {example, deep: deepObj} = require('./test/fixtures/complex.json')
+
+      console.log(example, deepObj)
+    `)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      var example = true, 
+          deepObj = {
+            nested: {
+              array: [1, 2, 3]
+            }
+          }
+
+      console.log(example, deepObj)
+    `)
+    )
+  })
+
+  // Left as an exercise to the reader!
+  // Currently just falls back to importing the whole file, _then_ destructuring
+  it.skip('supports destructuring deep require statements', () => {
+    const t = configureTransform()
+    const result = t(`
+      var {deep: {nested: {array: [, second]}}} = require('./test/fixtures/complex.json')
+
+      console.log(second)
+    `)
+    console.log(result.code)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      var second = 2
+
+      console.log(second)
+    `)
+    )
+  })
+
+  it('supports destructuring array require statements', () => {
+    const t = configureTransform()
+    const result = t(`
+      var [first, , third, ...rest] = require('./test/fixtures/array.json')
+
+      console.log(first, third, ...rest)
+    `)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      var first = "1st", 
+          third = "3rd",
+          rest = ["4th", "5th"]
+
+      console.log(first, third, ...rest)
+    `)
+    )
+  })
+
+  it('supports destructuring string require statements', () => {
+    const t = configureTransform()
+    const result = t(`
+      var [firstChar] = require('./test/fixtures/string.json')
+
+      console.log(firstChar)
+    `)
+
+    expect(normalize(result.code)).to.equal(
+      normalize(`
+      var firstChar = "j"
+
+      console.log(firstChar)
     `)
     )
   })
