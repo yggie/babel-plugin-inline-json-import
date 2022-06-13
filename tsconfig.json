@@ -1,0 +1,35 @@
+{
+  "include": ["./src/"],
+  "compilerOptions": {
+    "lib": ["es2020"],
+
+    // Output settings
+    "outDir": "./build/",
+    "module": "CommonJS",
+    "target": "ES2020",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    // Settings
+    "preserveConstEnums": true,
+    "useUnknownInCatchVariables": false,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // Strict type-checking
+    "strict": true,
+
+    // Additional checks
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "skipLibCheck": true,
+
+    // Module settings
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  }
+}
